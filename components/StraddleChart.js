@@ -24,7 +24,7 @@ export default function StraddleChart(){
 
  const interval=setInterval(async()=>{
 
- const res=await fetch("/api/nse")
+ const res=await fetch(`/api/nse?symbol=${symbol}&expiry=${expiry}`)
  const json=await res.json()
 
  setLabels(prev=>[...prev,new Date().toLocaleTimeString()])
