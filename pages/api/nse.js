@@ -1,3 +1,6 @@
+let cacheData = null
+let cacheTime = 0
+
 export default async function handler(req, res) {
 
  const symbol = req.query.symbol || "NIFTY"
@@ -6,37 +9,76 @@ export default async function handler(req, res) {
 
  try {
 
- const response = await fetch(
- `https://www.nseindia.com/api/option-chain-indices?symbol=${symbol}`,
+ // CACHE (Prevents NSE blocking)
+
+ if(cacheData && Date.now()-cacheTime<5000){
+
+ return res.json(cacheData)
+
+ }
+
+ // STEP 1 — Get NSE Cookie
+
+ const home = await fetch(
+ "https://www.nseindia.com",
  {
  headers:{
  "User-Agent":"Mozilla/5.0",
+ "Accept-Language":"en-US"
+ }
+ }
+ )
+
+ const cookies = home.headers.get("set-cookie")
+
+
+ // STEP 2 — Fetch Option Chain
+
+ const response = await fetch(
+
+ `https://www.nseindia.com/api/option-chain-indices?symbol=${symbol}`,
+
+ {
+
+ headers:{
+
+ "User-Agent":"Mozilla/5.0",
+
  "Accept-Language":"en-US",
- "Referer":"https://www.nseindia.com"
+
+ "Referer":"https://www.nseindia.com",
+
+ "Cookie":cookies
+
  }
+
  }
+
  )
 
  const raw = await response.json()
 
- const spot = raw.records.underlyingValue
+ const spot =
+ raw.records.underlyingValue
 
- const strikes = raw.records.data
-
- const expiries = raw.records.expiryDates
+ const expiries =
+ raw.records.expiryDates
 
  const expiry =
  expirySelected || expiries[0]
 
- const filtered =
- strikes.filter(
+ const strikes =
+ raw.records.data.filter(
  s=>s.expiryDate==expiry
  )
 
- // ATM Strike
+
+
+ // ATM CALCULATION
+
 
  const atmStrike =
- filtered.reduce((prev,curr)=>
+ strikes.reduce((prev,curr)=>
 
  Math.abs(curr.strikePrice-spot) <
  Math.abs(prev.strikePrice-spot)
@@ -45,8 +87,11 @@ export default async function handler(req, res) {
 
  ).strikePrice
 
+
  const atmData =
- filtered.find(s=>s.strikePrice==atmStrike)
+ strikes.find(s=>s.strikePrice==atmStrike)
+
+
 
  const ce =
  atmData?.CE?.lastPrice || 0
@@ -54,11 +99,15 @@ export default async function handler(req, res) {
  const pe =
  atmData?.PE?.lastPrice || 0
 
+
+
  const straddle =
  ce + pe
 
 
- // STRANGLE
+
+ // STRANGLE CALCULATION
+
 
  const callStrike =
  atmStrike + distance
@@ -66,23 +115,29 @@ export default async function handler(req, res) {
  const putStrike =
  atmStrike - distance
 
+
  const callData =
- filtered.find(s=>s.strikePrice==callStrike)
+ strikes.find(s=>s.strikePrice==callStrike)
 
  const putData =
- filtered.find(s=>s.strikePrice==putStrike)
+ strikes.find(s=>s.strikePrice==putStrike)
+
+
 
  const strangleCE =
  callData?.CE?.lastPrice || 0
 
+
  const stranglePE =
  putData?.PE?.lastPrice || 0
+
 
  const strangle =
  strangleCE + stranglePE
 
 
- res.json({
+
+ const responseData = {
 
  symbol,
 
@@ -112,12 +167,28 @@ export default async function handler(req, res) {
 
  strangle
 
- })
+ }
+
+
+ // SAVE CACHE
+
+ cacheData=responseData
+ cacheTime=Date.now()
+
+
+ res.json(responseData)
+
 
  } catch(e){
 
+ console.log("NSE ERROR:",e)
+
  res.json({
- error:"NSE fetch error"
+
+ error:true,
+
+ message:"NSE fetch failed"
+
  })
 
  }
