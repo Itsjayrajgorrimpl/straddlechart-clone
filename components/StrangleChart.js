@@ -1,5 +1,5 @@
-import { Line } from "react-chartjs-2"
-import { useEffect, useState } from "react"
+import { Line } from "react-chartjs-2";
+import { useEffect, useState } from "react";
 
 import {
  Chart,
@@ -9,7 +9,7 @@ import {
  LineElement,
  Tooltip,
  Legend
-} from "chart.js"
+} from "chart.js";
 
 Chart.register(
  CategoryScale,
@@ -18,9 +18,9 @@ Chart.register(
  LineElement,
  Tooltip,
  Legend
-)
+);
 
-export default function StrangleChart(){
+export default function StrangleChart() {
 
  const [symbol,setSymbol]=useState("NIFTY")
  const [distance,setDistance]=useState(200)
@@ -32,49 +32,121 @@ export default function StrangleChart(){
  const [values,setValues]=useState([])
 
  const [spot,setSpot]=useState(0)
+ const [atmStrike,setAtmStrike]=useState(0)
+ const [callStrike,setCallStrike]=useState(0)
+ const [putStrike,setPutStrike]=useState(0)
 
- const fetchData=async()=>{
+ const [error,setError]=useState(false)
+ const [loading,setLoading]=useState(true)
 
- const res=await fetch(
+
+
+ const fetchData = async()=>{
+
+ try{
+
+ setError(false)
+
+ const res = await fetch(
  `/api/nse?symbol=${symbol}&distance=${distance}&expiry=${expiry}`
  )
 
- const json=await res.json()
+ const json = await res.json()
 
- if(json.error) return
+ if(json.error){
+
+ setError(true)
+ return
+
+ }
+
+ setLoading(false)
 
  setSpot(json.spot)
 
  setExpiries(json.expiries)
 
- if(!expiry)
+ setAtmStrike(json.atmStrike)
+
+ setCallStrike(json.callStrike)
+
+ setPutStrike(json.putStrike)
+
+ if(!expiry && json.expiries.length>0){
+
  setExpiry(json.expiries[0])
+
+ }
 
  const time =
  new Date().toLocaleTimeString()
 
  setLabels(prev=>{
+
  const updated=[...prev,time]
+
  return updated.slice(-150)
+
  })
 
  setValues(prev=>{
+
  const updated=[...prev,json.strangle]
+
  return updated.slice(-150)
+
  })
 
+
+ }catch(e){
+
+ setError(true)
+
  }
+
+ }
+
+
 
  useEffect(()=>{
 
  fetchData()
 
- const interval=
+ const interval =
  setInterval(fetchData,5000)
 
- return()=>clearInterval(interval)
+ return ()=>clearInterval(interval)
 
  },[symbol,distance,expiry])
+
+
+
+ if(error)
+
+ return(
+
+ <div style={{padding:"20px"}}>
+
+ NSE data unavailable
+
+ </div>
+
+ )
+
+
+
+ if(loading)
+
+ return(
+
+ <div style={{padding:"20px"}}>
+
+ Loading market data...
+
+ </div>
+
+ )
+
 
 
  const chartData={
@@ -82,9 +154,10 @@ export default function StrangleChart(){
  labels,
 
  datasets:[
+
  {
 
- label:"Strangle Premium",
+ label:"OTM Strangle Premium",
 
  data:values,
 
@@ -96,22 +169,43 @@ export default function StrangleChart(){
 
  }
 
+
+
  return(
 
  <div style={{padding:"20px"}}>
 
+
+
  <h2>Live Strangle Chart</h2>
+
 
 
  {/* SELECTORS */}
 
 
- <div style={{display:"flex",gap:"10px"}}>
+
+ <div
+ style={{
+ display:"flex",
+ gap:"10px",
+ flexWrap:"wrap",
+ marginBottom:"10px"
+ }}
+ >
 
 
  <select
  value={symbol}
- onChange=e=>setSymbol(e.target.value)
+ onChange={(e)=>{
+
+ setSymbol(e.target.value)
+
+ setLabels([])
+
+ setValues([])
+
+ }}
  >
 
  <option>NIFTY</option>
@@ -123,10 +217,18 @@ export default function StrangleChart(){
  </select>
 
 
+
  <select
  value={distance}
- onChange=e=>
+ onChange={(e)=>{
+
  setDistance(e.target.value)
+
+ setLabels([])
+
+ setValues([])
+
+ }}
  >
 
  <option value="100">±100</option>
@@ -140,10 +242,18 @@ export default function StrangleChart(){
  </select>
 
 
+
  <select
  value={expiry}
- onChange=e=>
+ onChange={(e)=>{
+
  setExpiry(e.target.value)
+
+ setLabels([])
+
+ setValues([])
+
+ }}
  >
 
  {
@@ -159,21 +269,67 @@ export default function StrangleChart(){
  </select>
 
 
+
  </div>
 
 
- <div style={{marginTop:"10px"}}>
+
+ {/* MARKET INFO */}
+
+
+
+ <div style={{marginBottom:"10px"}}>
 
  Spot: {spot}
 
  </div>
 
 
- <Line data={chartData}/>
+
+ <div style={{marginBottom:"10px"}}>
+
+ ATM Strike: {atmStrike}
+
+ </div>
+
+
+
+ <div style={{marginBottom:"10px"}}>
+
+ Call Strike: {callStrike}
+
+ </div>
+
+
+
+ <div style={{marginBottom:"10px"}}>
+
+ Put Strike: {putStrike}
+
+ </div>
+
+
+
+ {/* CHART */}
+
+
+
+ <div style={{height:"400px"}}>
+
+ <Line
+ data={chartData}
+ options={{
+ responsive:true,
+ maintainAspectRatio:false
+ }}
+ />
+
+ </div>
+
 
 
  </div>
 
  )
 
-}
+  }
