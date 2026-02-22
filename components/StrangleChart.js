@@ -1,5 +1,5 @@
-import { Line } from "react-chartjs-2";
-import { useEffect, useState } from "react";
+import { Line } from "react-chartjs-2"
+import { useEffect, useState } from "react"
 
 import {
  Chart,
@@ -9,7 +9,7 @@ import {
  LineElement,
  Tooltip,
  Legend
-} from "chart.js";
+} from "chart.js"
 
 Chart.register(
  CategoryScale,
@@ -18,79 +18,73 @@ Chart.register(
  LineElement,
  Tooltip,
  Legend
-);
+)
 
-export default function StrangleChart() {
+export default function StrangleChart(){
 
- const [labels, setLabels] = useState([]);
- const [values, setValues] = useState([]);
+ const [symbol,setSymbol]=useState("NIFTY")
+ const [distance,setDistance]=useState(200)
+
+ const [expiry,setExpiry]=useState("")
+ const [expiries,setExpiries]=useState([])
+
+ const [labels,setLabels]=useState([])
+ const [values,setValues]=useState([])
 
  const [spot,setSpot]=useState(0)
- const [callStrike,setCallStrike]=useState(0)
- const [putStrike,setPutStrike]=useState(0)
 
- useEffect(()=>{
+ const fetchData=async()=>{
 
- const fetchData = async ()=>{
+ const res=await fetch(
+ `/api/nse?symbol=${symbol}&distance=${distance}&expiry=${expiry}`
+ )
 
- try{
+ const json=await res.json()
 
- const res = await fetch("/api/nse");
-
- const json = await res.json();
-
- if(json.error) return;
-
- const time =
- new Date().toLocaleTimeString();
-
- setLabels(prev=>{
-
- const updated=[...prev,time]
-
- return updated.slice(-100)
-
- })
-
- setValues(prev=>{
-
- const updated=[...prev,json.strangle]
-
- return updated.slice(-100)
-
- })
+ if(json.error) return
 
  setSpot(json.spot)
 
- setCallStrike(json.callStrike)
+ setExpiries(json.expiries)
 
- setPutStrike(json.putStrike)
+ if(!expiry)
+ setExpiry(json.expiries[0])
 
- }catch(e){
+ const time =
+ new Date().toLocaleTimeString()
 
- console.log("Fetch error")
+ setLabels(prev=>{
+ const updated=[...prev,time]
+ return updated.slice(-150)
+ })
+
+ setValues(prev=>{
+ const updated=[...prev,json.strangle]
+ return updated.slice(-150)
+ })
 
  }
 
- }
+ useEffect(()=>{
 
  fetchData()
 
- const interval =
+ const interval=
  setInterval(fetchData,5000)
 
- return ()=>clearInterval(interval)
+ return()=>clearInterval(interval)
 
- },[])
+ },[symbol,distance,expiry])
 
- const chartData = {
+
+ const chartData={
 
  labels,
 
  datasets:[
  {
 
- label:"OTM Strangle Premium",
+ label:"Strangle Premium",
 
  data:values,
 
@@ -108,25 +102,75 @@ export default function StrangleChart() {
 
  <h2>Live Strangle Chart</h2>
 
- <div style={{marginBottom:"10px"}}>
+
+ {/* SELECTORS */}
+
+
+ <div style={{display:"flex",gap:"10px"}}>
+
+
+ <select
+ value={symbol}
+ onChange=e=>setSymbol(e.target.value)
+ >
+
+ <option>NIFTY</option>
+
+ <option>BANKNIFTY</option>
+
+ <option>FINNIFTY</option>
+
+ </select>
+
+
+ <select
+ value={distance}
+ onChange=e=>
+ setDistance(e.target.value)
+ >
+
+ <option value="100">±100</option>
+
+ <option value="200">±200</option>
+
+ <option value="300">±300</option>
+
+ <option value="500">±500</option>
+
+ </select>
+
+
+ <select
+ value={expiry}
+ onChange=e=>
+ setExpiry(e.target.value)
+ >
+
+ {
+
+ expiries.map(x=>(
+
+ <option key={x}>{x}</option>
+
+ ))
+
+ }
+
+ </select>
+
+
+ </div>
+
+
+ <div style={{marginTop:"10px"}}>
 
  Spot: {spot}
 
  </div>
 
- <div style={{marginBottom:"10px"}}>
 
- Call Strike: {callStrike}
+ <Line data={chartData}/>
 
- </div>
-
- <div style={{marginBottom:"10px"}}>
-
- Put Strike: {putStrike}
-
- </div>
-
- <Line data={chartData} />
 
  </div>
 
