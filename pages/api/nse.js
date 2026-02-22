@@ -1,6 +1,3 @@
-let cache = null
-let cacheTime = 0
-
 export default async function handler(req, res) {
 
  const symbol = req.query.symbol || "NIFTY"
@@ -9,49 +6,13 @@ export default async function handler(req, res) {
 
  try {
 
- // CACHE (5 sec)
-
- if(cache && Date.now()-cacheTime < 5000){
-
- return res.json(cache)
-
- }
-
-
- // DIRECT NSE REQUEST
-
+ // FREE NSE PROXY API
 
  const response = await fetch(
 
- `https://www.nseindia.com/api/option-chain-indices?symbol=${symbol}`,
-
- {
-
- headers:{
-
- "accept":"application/json",
-
- "accept-language":"en-US,en;q=0.9",
-
- "user-agent":
- "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-
- "referer":
- "https://www.nseindia.com/option-chain"
-
- }
-
- }
+ `https://api.allorigins.win/raw?url=https://www.nseindia.com/api/option-chain-indices?symbol=${symbol}`
 
  )
-
-
- if(!response.ok){
-
- throw new Error("NSE blocked request")
-
- }
-
 
  const raw = await response.json()
 
@@ -74,8 +35,7 @@ export default async function handler(req, res) {
  )
 
 
- // ATM STRIKE
-
+ // ATM
 
  const atm =
  strikes.reduce((a,b)=>{
@@ -138,7 +98,7 @@ export default async function handler(req, res) {
 
 
 
- const result={
+ res.json({
 
  symbol,
 
@@ -168,20 +128,10 @@ export default async function handler(req, res) {
 
  strangle
 
- }
-
-
- cache=result
- cacheTime=Date.now()
-
-
- res.json(result)
-
+ })
 
 
  } catch(e){
-
- console.log(e)
 
  res.json({
  error:true
