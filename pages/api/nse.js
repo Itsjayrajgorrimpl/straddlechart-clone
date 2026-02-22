@@ -1,7 +1,8 @@
 export default async function handler(req, res) {
 
  const symbol = req.query.symbol || "NIFTY"
- const distance = 200
+ const distance = parseInt(req.query.distance || "200")
+ const expirySelected = req.query.expiry || ""
 
  try {
 
@@ -16,57 +17,97 @@ export default async function handler(req, res) {
  }
  )
 
- const data = await response.json()
+ const raw = await response.json()
 
- const spot = data.records.underlyingValue
+ const spot = raw.records.underlyingValue
 
- const strikes = data.records.data
+ const strikes = raw.records.data
+
+ const expiries = raw.records.expiryDates
+
+ const expiry =
+ expirySelected || expiries[0]
+
+ const filtered =
+ strikes.filter(
+ s=>s.expiryDate==expiry
+ )
+
+ // ATM Strike
 
  const atmStrike =
- strikes.reduce((prev, curr) =>
+ filtered.reduce((prev,curr)=>
+
  Math.abs(curr.strikePrice-spot) <
- Math.abs(prev.strikePrice-spot) ? curr : prev
+ Math.abs(prev.strikePrice-spot)
+ ? curr
+ : prev
+
  ).strikePrice
 
  const atmData =
- strikes.find(s=>s.strikePrice==atmStrike)
+ filtered.find(s=>s.strikePrice==atmStrike)
 
- const ce = atmData.CE.lastPrice
- const pe = atmData.PE.lastPrice
+ const ce =
+ atmData?.CE?.lastPrice || 0
 
- const straddle = ce+pe
+ const pe =
+ atmData?.PE?.lastPrice || 0
 
- // REAL STRANGLE
+ const straddle =
+ ce + pe
 
- const callStrike = atmStrike + distance
- const putStrike = atmStrike - distance
+
+ // STRANGLE
+
+ const callStrike =
+ atmStrike + distance
+
+ const putStrike =
+ atmStrike - distance
 
  const callData =
- strikes.find(s=>s.strikePrice==callStrike)
+ filtered.find(s=>s.strikePrice==callStrike)
 
  const putData =
- strikes.find(s=>s.strikePrice==putStrike)
+ filtered.find(s=>s.strikePrice==putStrike)
 
- const strangleCE = callData?.CE?.lastPrice || 0
- const stranglePE = putData?.PE?.lastPrice || 0
+ const strangleCE =
+ callData?.CE?.lastPrice || 0
+
+ const stranglePE =
+ putData?.PE?.lastPrice || 0
 
  const strangle =
  strangleCE + stranglePE
 
+
  res.json({
 
+ symbol,
+
  spot,
+
+ expiries,
+
+ expiry,
+
  atmStrike,
 
  ce,
+
  pe,
 
  straddle,
 
+ distance,
+
  callStrike,
+
  putStrike,
 
  strangleCE,
+
  stranglePE,
 
  strangle
@@ -76,7 +117,7 @@ export default async function handler(req, res) {
  } catch(e){
 
  res.json({
- error:"NSE error"
+ error:"NSE fetch error"
  })
 
  }
